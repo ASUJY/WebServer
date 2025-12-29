@@ -22,7 +22,15 @@ void LogStream::FlushAll() {
     m_buf.Reset();
 }
 
-void LogStream::Output(const char *msg, int len) {
+void LogStream::FlushRoll() {
+    std::lock_guard<std::mutex> locker(m_mtx);
+    if (m_buf.Used() > 0) {
+        Output(m_buf.BasePtr(), m_buf.Used(), true);
+    }
+    m_buf.Reset();
+}
+
+void LogStream::Output(const char *msg, int len, bool close) {
     std::unique_lock<std::mutex> locker(m_mtx);
     if (m_logFile.empty()) {
         locker.unlock();
@@ -37,6 +45,9 @@ void LogStream::Output(const char *msg, int len) {
         // 写入数据到文件，flush确保数据刷到磁盘
         m_ofstream.write(msg, len);
         m_ofstream.flush();
+        if (close) {
+            m_ofstream.close();
+        }
         locker.unlock();
     }
 }

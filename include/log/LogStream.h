@@ -21,8 +21,8 @@
 class LogStream {
 public:
     explicit LogStream(const std::string &logFile) :
-        m_logFile(logFile), m_lineBuf(LOG_LINE_BUFFER_SIZE),
-        m_buf(LOG_BUFFER_SIZE) {}
+        m_logFile(logFile), m_logFileBasename(logFile),
+        m_lineBuf(LOG_LINE_BUFFER_SIZE), m_buf(LOG_BUFFER_SIZE) {}
     LogStream(const LogStream&) = delete;
     LogStream& operator=(const LogStream&) = delete;
 
@@ -34,6 +34,16 @@ public:
     void SetLogFile(const std::string &file) {
         std::lock_guard<std::mutex> locker(m_mtx);
         m_logFile = file;
+    }
+
+    void SetLogFileBasename(const std::string &file) {
+        std::lock_guard<std::mutex> locker(m_mtx);
+        m_logFileBasename = file;
+    }
+
+    std::string GetLogFileBasename() {
+        std::lock_guard<std::mutex> locker(m_mtx);
+        return m_logFileBasename;
     }
 
     LogStream& operator<<(const char* str) {
@@ -95,6 +105,7 @@ public:
 
     void FlushAll();
     void FlushLine();
+    void FlushRoll();
 
 private:
     void Append(const char* str, int len) {
@@ -110,12 +121,13 @@ private:
         }
     }
 
-    void Output(const char* msg, int len);
+    void Output(const char* msg, int len, bool close = false);
     bool Open();
     void Close();
 
 private:
     std::string m_logFile{nullptr};
+    std::string m_logFileBasename{nullptr};
     LogStreamBuf m_lineBuf;
     LogStreamBuf m_buf;
     std::mutex m_mtx;

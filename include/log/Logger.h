@@ -31,13 +31,29 @@ public:
     // 配置日志文件
     static void Config(const std::string &file);
 
+    static void SetLogFile(const std::string &file) {
+        Stream().FlushRoll();
+        Stream().SetLogFile(file);
+    }
+
+    static std::string GetLogFileBasename() {
+        return Stream().GetLogFileBasename();
+    }
+
 private:
     void Format(LogLevel level, const char* file, int line);
     std::string GetFormatedTime();
+    void NeedRoll();
+    std::string GenerateFilename();
+private:
+    static const int MAX_LINES = 50000;
+    static unsigned long long m_lineCount;
+    static int m_today;
+    std::mutex m_mtx;
 };
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL (Logger::LogLevel::DEBUG)
+#define LOG_LEVEL (Logger::LogLevel::TRACE)
 #endif
 
 #define LOG_TRACE \
