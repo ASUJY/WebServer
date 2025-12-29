@@ -12,6 +12,8 @@ add_executable(
 target_link_libraries(
     ${PROJECT_NAME}
     log
+    common-lib
 )
 
 add_subdirectory(src/log)
+add_subdirectory(src/common-lib)
