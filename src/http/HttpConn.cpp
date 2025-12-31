@@ -41,3 +41,7 @@ bool HttpConn::Write() {
     LOG_DEBUG << "一次性写完数据";
     return true;
 }
+
+void HttpConn::Process() {
+    LOG_INFO << "parse request";
+}

@@ -33,6 +33,8 @@ public:
         m_epollfd.store(fd);
     }
 
+    void Process();
+
 private:
     int m_sockfd = -1;
     sockaddr_in m_addr{};

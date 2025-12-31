@@ -31,29 +31,24 @@ void LogStream::FlushRoll() {
 }
 
 void LogStream::Output(const char *msg, int len, bool close) {
-    std::unique_lock<std::mutex> locker(m_mtx);
-    if (m_logFile.empty()) {
-        locker.unlock();
+    if (msg == nullptr || len <= 0) {
         return;
     }
-    locker.unlock();
+    if (m_logFile.empty()) {
+        return;
+    }
     if (!Open()) {
         return;
     }
-    {
-        locker.lock();
-        // 写入数据到文件，flush确保数据刷到磁盘
-        m_ofstream.write(msg, len);
-        m_ofstream.flush();
-        if (close) {
-            m_ofstream.close();
-        }
-        locker.unlock();
+    // 写入数据到文件，flush确保数据刷到磁盘
+    m_ofstream.write(msg, len);
+    m_ofstream.flush();
+    if (close) {
+        m_ofstream.close();
     }
 }
 
 bool LogStream::Open() {
-    std::lock_guard<std::mutex> locker(m_mtx);
     if (m_ofstream.is_open()) {
         return true;
     }

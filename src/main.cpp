@@ -11,6 +11,7 @@
 #include "log/Logger.h"
 #include "common-lib/Utils.h"
 #include "http/HttpConn.h"
+#include "common-lib/ThreadPool.h"
 
 constexpr int LISTEN_BACKLOG = 8;
 constexpr int MAX_EVENT_NUMBER = 10000; // 监听的最大的事件数量
@@ -69,6 +70,7 @@ int main(int argc, char* argv[]) {
     AddFD(epollfd, listenfd, false);
     HttpConn::SetEpollFD(epollfd);
 
+    std::unique_ptr<ThreadPool<HttpConn>> pool(new ThreadPool<HttpConn>);
     std::unique_ptr<HttpConn[]> users(new HttpConn[MAX_FD]);
     while (true) {
         int number = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
@@ -101,7 +103,7 @@ int main(int argc, char* argv[]) {
                 users[sockfd].CloseConn();
             } else if (events[i].events & EPOLLIN) {
                 if (users[sockfd].Read()) {
-
+                    pool->Append(&users[sockfd]);
                 } else {
                     users[sockfd].CloseConn();
                 }
