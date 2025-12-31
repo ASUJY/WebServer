@@ -36,6 +36,9 @@ void HttpConn::init() {
     m_checkedIndex = 0;
     m_startLine = 0;
     m_readBuffer.fill('\0');
+    m_linger = false;
+    m_contentLength = 0;
+    m_host.clear();
 }
 
 void HttpConn::CloseConn() {
@@ -82,6 +85,9 @@ bool HttpConn::Write() {
     return true;
 }
 
+/*
+ * 解析一行，判断依据 \r\n
+ */
 http::LINE_STATUS HttpConn::ParseLine() {
     char temp = 0;
     for (; m_checkedIndex < m_readIndex; ++m_checkedIndex) {
@@ -107,9 +113,15 @@ http::LINE_STATUS HttpConn::ParseLine() {
     return http::LINE_STATUS::LINE_OPEN;
 }
 
+/*
+ * GET /index.html HTTP/1.1
+ * m_url = /index.html
+ * method = GET
+ * m_version = HTTP/1.1
+ */
 http::HTTP_CODE HttpConn::ParseRequestLine(char *text) {
     m_url = std::strpbrk(text, " \t");
-    if (m_url) {
+    if (!m_url) {
         return http::HTTP_CODE::BAD_REQUEST;
     }
     *m_url++ = '\0';
@@ -145,12 +157,73 @@ http::HTTP_CODE HttpConn::ParseRequestLine(char *text) {
 }
 
 http::HTTP_CODE HttpConn::ParseHeaders(char *text) {
+    std::string headerText(text);
+    if(headerText.empty()) {
+        if (m_contentLength != 0) {
+            m_checkState = http::CHECK_STATE::CHECK_STATE_CONTENT;
+            return http::HTTP_CODE::NO_REQUEST;
+        }
+        return http::HTTP_CODE::GET_REQUEST;
+    }
 
+    std::string lowerText = headerText;
+    for (auto& ch : lowerText) {
+        ch = std::tolower(static_cast<unsigned char>(ch));
+    }
+    if (lowerText.find("connection:") == 0) {
+        auto colonPos  = lowerText.find(":");
+        if (colonPos != std::string::npos) {
+            std::string value = headerText.substr(colonPos);
+            auto firstNonWs = value.find_first_not_of(" \t");
+            if (firstNonWs != std::string::npos) {
+                value.erase(0, firstNonWs + 1 + 1 );
+                if (value.find("keep-alive") == 0) {
+                    m_linger = true;
+                    LOG_INFO << "connection: keep-alive";
+                }
+            }
+        }
+    } else if (lowerText.find("content-length") == 0) {
+        auto colonPos = lowerText.find(":");
+        if (colonPos != std::string::npos) {
+            std::string value = headerText.substr(colonPos + 1);
+            auto firstNonWs = value.find_first_not_of(" \t");
+            if (firstNonWs != std::string::npos) {
+                value = value.substr(firstNonWs);
+                m_contentLength = std::stoi(value);
+                LOG_INFO << "content-length: " << m_contentLength;
+            }
+        }
+    } else if (lowerText.find("host") == 0) {
+        // 处理Host头部字段
+        auto colonPos = lowerText.find(":");
+        if (colonPos != std::string::npos) {
+            std::string value = headerText.substr(colonPos + 1);
+            auto firstNonWs = value.find_first_not_of(" \t");
+            if (firstNonWs != std::string::npos) {
+                m_host = value.substr(firstNonWs);
+                LOG_INFO << "host: " << m_host;
+            }
+        }
+    } else {
+        LOG_ERROR << "oop! unknow header: " << lowerText;
+    }
+    return http::HTTP_CODE::NO_REQUEST;
 }
 
-
+/*
+ * 没有真正解析HTTP请求的消息体，只是判断它是否被完整的读入了
+ */
 http::HTTP_CODE HttpConn::ParseContent(char* text) {
-
+    if (text == nullptr) {
+        return http::HTTP_CODE::BAD_REQUEST;
+    }
+    if (m_readIndex >= (m_contentLength + m_checkedIndex)) {
+        text[m_contentLength] = '\0';
+        LOG_INFO << "请求体：" << text;
+        return http::HTTP_CODE::GET_REQUEST;
+    }
+    return http::HTTP_CODE::NO_REQUEST;
 }
 
 http::HTTP_CODE HttpConn::DoRequest() {

@@ -99,8 +99,11 @@ private:
 
     char* m_url{nullptr};
     char* m_version{nullptr};
+    std::string m_host;
     http::CHECK_STATE m_checkState{http::CHECK_STATE::CHECK_STATE_REQUESTLINE};
     http::HTTP_METHOD m_method{http::HTTP_METHOD::GET};
+    int m_contentLength{0};
+    bool m_linger{false};
 
     static std::atomic<int> m_epollfd;
     static std::atomic<int> m_user_count;
