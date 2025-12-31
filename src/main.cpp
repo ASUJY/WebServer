@@ -6,13 +6,16 @@
 #include <arpa/inet.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+#include <memory>
 
 #include "log/Logger.h"
 #include "common-lib/Utils.h"
+#include "http/HttpConn.h"
 
 constexpr int LISTEN_BACKLOG = 8;
 constexpr int MAX_EVENT_NUMBER = 10000; // 监听的最大的事件数量
 constexpr int EPOLL_INSTANCE_SIZE = 100; // useless
+constexpr int MAX_FD = 65535;
 
 int main(int argc, char* argv[]) {
     if (argc <= 1) {
@@ -64,7 +67,9 @@ int main(int argc, char* argv[]) {
     epoll_event events[MAX_EVENT_NUMBER];
     int epollfd = epoll_create(EPOLL_INSTANCE_SIZE);
     AddFD(epollfd, listenfd, false);
+    HttpConn::SetEpollFD(epollfd);
 
+    std::unique_ptr<HttpConn[]> users(new HttpConn[MAX_FD]);
     while (true) {
         int number = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
         if ((number < 0) && (errno != EINTR)) {
@@ -84,22 +89,25 @@ int main(int argc, char* argv[]) {
                     LOG_ERROR << "accept failed!!!";
                     continue;
                 }
+                if (HttpConn::GetUserCount() >= MAX_FD) {
+                    close(connfd);
+                    continue;
+                }
+                users[connfd].Init(connfd, clientAddress);
                 LOG_DEBUG << "Client Address: "
                     << inet_ntoa(clientAddress.sin_addr);
                 LOG_DEBUG << "Client Port: " << ntohs(clientAddress.sin_port);
-                AddFD(epollfd, connfd, false);
-            } else {
-                std::array<char, 1024> buf{};
-                auto len = read(sockfd, buf.data(), buf.size());
-                if (len == -1) {
-                    LOG_ERROR << "read fail!!!";
-                    std::exit(EXIT_FAILURE);
-                } else if (len == 0) {
-                    LOG_INFO << "client closed...";
-                    DelFD(epollfd, sockfd);
-                } else if (len > 0) {
-                    LOG_INFO << "read buf = " << buf.data();
-                    write(sockfd, buf.data(), std::strlen(buf.data()) + 1);
+            } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP |EPOLLERR)) {
+                users[sockfd].CloseConn();
+            } else if (events[i].events & EPOLLIN) {
+                if (users[sockfd].Read()) {
+
+                } else {
+                    users[sockfd].CloseConn();
+                }
+            } else if (events[i].events & EPOLLOUT) {
+                if (!users[sockfd].Write()) {
+                    users[sockfd].CloseConn();
                 }
             }
         }
