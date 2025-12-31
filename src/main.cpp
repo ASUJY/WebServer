@@ -96,9 +96,9 @@ int main(int argc, char* argv[]) {
                     continue;
                 }
                 users[connfd].Init(connfd, clientAddress);
-                LOG_DEBUG << "Client Address: "
+                LOG_INFO<< "Client Address: "
                     << inet_ntoa(clientAddress.sin_addr);
-                LOG_DEBUG << "Client Port: " << ntohs(clientAddress.sin_port);
+                LOG_INFO << "Client Port: " << ntohs(clientAddress.sin_port);
             } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP |EPOLLERR)) {
                 users[sockfd].CloseConn();
             } else if (events[i].events & EPOLLIN) {

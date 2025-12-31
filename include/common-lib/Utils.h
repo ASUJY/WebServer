@@ -16,5 +16,6 @@ std::string GetBasename(const std::string& path);
 
 void AddFD(int epollfd, int fd, bool oneShot);
 void DelFD(int epollfd, int fd);
+void ModFD(int epollfd, int fd, int ev);
 
 #endif //UTILS_H

@@ -73,3 +73,12 @@ void DelFD(int epollfd, int fd) {
     epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, nullptr);
     close(fd);
 }
+
+void ModFD(int epollfd, int fd, int ev) {
+    epoll_event event{};
+    event.data.fd = fd;
+    event.events = ev | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
+    if (epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event) == -1) {
+        LOG_ERROR << "Failed to modify fd (EPOLL_CTL_MOD): " << strerror(errno);
+    }
+}
