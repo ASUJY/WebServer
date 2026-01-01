@@ -10,6 +10,8 @@
 #include "common-lib/Utils.h"
 #include "log/Logger.h"
 
+#include <linux/limits.h>
+
 std::string GetBasename(const std::string &path) {
     std::string basename = path;
     auto lastSlash = basename.find_last_of("/");
@@ -81,4 +83,19 @@ void ModFD(int epollfd, int fd, int ev) {
     if (epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event) == -1) {
         LOG_ERROR << "Failed to modify fd (EPOLL_CTL_MOD): " << strerror(errno);
     }
+}
+
+std::string GetExecutableDir() {
+    char path[PATH_MAX] = {0};
+    ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
+    if (count != -1) {
+        path[count] = '\0';
+        std::string dirPath(path);
+        auto lastSlashPos = dirPath.find_last_of('/');
+        if (lastSlashPos == std::string::npos) {
+            return {};
+        }
+        return dirPath.substr(0, lastSlashPos);
+    }
+    return {};
 }

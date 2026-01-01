@@ -13,6 +13,7 @@ using SignalHandler = void(*)(int);
 void AddSignal(int sig, SignalHandler handler);
 
 std::string GetBasename(const std::string& path);
+std::string GetExecutableDir();
 
 void AddFD(int epollfd, int fd, bool oneShot);
 void DelFD(int epollfd, int fd);

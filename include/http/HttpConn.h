@@ -8,8 +8,21 @@
 #include <atomic>
 #include <arpa/inet.h>
 #include <array>
+#include <sys/stat.h>
 
 namespace http {
+    namespace status {
+        constexpr const char* OK_200_TITLE = "OK";
+        constexpr const char* ERROR_400_TITLE = "Bad Request";
+        constexpr const char* ERROR_400_FORM = "Your request has bad syntax or is inherently impossible to satisfy.";
+        constexpr const char* ERROR_403_TITLE = "Forbidden";
+        constexpr const char* ERROR_403_FORM = "You do not have permission to get file from this server.";
+        constexpr const char* ERROR_404_TITLE = "Not Found";
+        constexpr const char* ERROR_404_FORM = "The requested file was not found on this server.";
+        constexpr const char* ERROR_500_TITLE = "Internal Error";
+        constexpr const char* ERROR_500_FORM = "There was an unusual problem serving the requested file.";
+    }
+
     enum class HTTP_METHOD : int {
         GET = 0,
         POST,
@@ -48,6 +61,7 @@ namespace http {
 class HttpConn {
 public:
     static constexpr uint32_t READ_BUFFER_SIZE = 4096;
+    static constexpr uint32_t WRITE_BUFFER_SIZE = 2048;
 
     HttpConn() = default;
     virtual ~HttpConn() = default;
@@ -77,6 +91,7 @@ public:
 private:
     void init();
     http::HTTP_CODE ProcessRead();
+    bool ProcessWrite(http::HTTP_CODE ret);
 
     /* ProcessRead() use these functions */
     http::HTTP_CODE ParseRequestLine(char* text);
@@ -87,6 +102,17 @@ private:
         return m_readBuffer.data() + m_startLine;
     }
     http::HTTP_CODE DoRequest();
+
+    /* ProcessWrite() use these functions */
+    bool AddResponse(const char* format, ...);
+    bool AddStatusLine(int status, const char* title);
+    bool AddHeader(int contentLength);
+    bool AddContentLength(int contentLength);
+    bool AddContentType();
+    bool AddLinger();
+    bool AddBlankLine();
+    bool AddContent(const char* content);
+    void Unmap();  // 对内存映射区执行munmap操作
 
 private:
     int m_sockfd = -1;
@@ -104,6 +130,16 @@ private:
     http::HTTP_METHOD m_method{http::HTTP_METHOD::GET};
     int m_contentLength{0};
     bool m_linger{false};
+    std::string m_realFile;
+
+    std::size_t m_writeIndex = 0;
+    std::array<char, WRITE_BUFFER_SIZE> m_writeBuffer;
+    struct stat m_fileStat{};
+    char* m_fileAddress{nullptr};  // 资源文件
+    struct iovec m_iv[2];
+    int m_ivCount{0};
+    int m_bytesToSend{0};
+    int m_bytesHaveSend{0};
 
     static std::atomic<int> m_epollfd;
     static std::atomic<int> m_user_count;
